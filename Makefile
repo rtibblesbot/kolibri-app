@@ -178,6 +178,26 @@ update-translations:
 compile-mo:
 	find src/kolibri_app/locales -name LC_MESSAGES -exec msgfmt {}/wxapp.po -o {}/wxapp.mo \;
 
+.PHONY: wxapp-extract-strings
+wxapp-extract-strings:
+	xgettext \
+		--language=Python \
+		--keyword=_ \
+		--from-code=UTF-8 \
+		--add-comments=i18n \
+		--no-wrap \
+		--output=src/kolibri_app/locales/en/LC_MESSAGES/wxapp.po \
+		src/kolibri_app/*.py
+
+.PHONY: i18n-upload
+i18n-upload: translations-export-source wxapp-extract-strings
+	crowdin upload sources
+
+.PHONY: i18n-download
+i18n-download:
+	crowdin download
+	$(MAKE) compile-mo
+
 .PHONY: codesign-mac-app
 codesign-mac-app:
 	$(MAKE) guard-MAC_CODESIGN_IDENTITY
