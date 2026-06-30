@@ -9,8 +9,6 @@ from wx import html2
 
 from kolibri_app.about_dialog import AboutDialog
 from kolibri_app.constants import APP_NAME
-from kolibri_app.constants import DOCS_URL
-from kolibri_app.constants import FORUMS_URL
 from kolibri_app.constants import LINUX
 from kolibri_app.constants import MAC
 from kolibri_app.constants import TRAY_ICON_ICO
@@ -122,6 +120,8 @@ class KolibriView(object):
                 handler=self.on_about,
                 item_id=wx.ID_ABOUT,
             )
+
+        if MAC:
             # Items in a menu named with the app name appear in the macOS
             # Application menu, before wx-provided Services / Hide / Quit.
             menu_bar.Append(primary_menu, APP_NAME)
@@ -285,10 +285,10 @@ class KolibriView(object):
         self.view.SetTitle(event.GetString())
 
     def on_documentation(self, event):
-        webbrowser.open(DOCS_URL)
+        webbrowser.open("https://kolibri.readthedocs.io/en/latest/")
 
     def on_forums(self, event):
-        webbrowser.open(FORUMS_URL)
+        webbrowser.open("https://community.learningequality.org/")
 
     def on_about(self, event):
         dlg = AboutDialog(self.view)

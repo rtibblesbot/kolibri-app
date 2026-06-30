@@ -5,9 +5,10 @@ import wx
 import wx.adv
 
 from kolibri_app._version import __version__ as app_version
-from kolibri_app.constants import DOCS_URL
-from kolibri_app.constants import FORUMS_URL
 from kolibri_app.i18n import _
+
+DOCS_URL = "https://kolibri.readthedocs.io/en/latest/"
+FORUMS_URL = "https://community.learningequality.org/"
 
 
 class AboutDialog(wx.Dialog):
