@@ -2,6 +2,9 @@ import sys
 
 APP_NAME = "Kolibri"
 
+DOCS_URL = "https://kolibri.readthedocs.io/en/latest/"
+FORUMS_URL = "https://community.learningequality.org/"
+
 LINUX = sys.platform.startswith("linux")
 
 MAC = sys.platform.startswith("darwin")
