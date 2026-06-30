@@ -1,3 +1,5 @@
+import ctypes
+import ctypes.util
 import os
 import subprocess
 import webbrowser
@@ -54,6 +56,74 @@ def get_loader_html():
         loader_page = asset_files / "en" / LOADER_PAGE
     with loader_page.open("r", encoding="utf-8") as f:
         return f.read()
+
+
+def _open_in_file_manager(path):
+    if WINDOWS:
+        os.startfile(path)
+    elif MAC:
+        subprocess.call(["open", path])
+    elif LINUX:
+        subprocess.call(["xdg-open", path])
+
+
+def _open_devtools_mac(native_ptr):
+    libobjc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))
+    libobjc.sel_registerName.restype = ctypes.c_void_p
+    libobjc.sel_registerName.argtypes = [ctypes.c_char_p]
+    sel = libobjc.sel_registerName
+    ptr = ctypes.c_void_p(int(native_ptr))
+
+    # Enable developer extras — required for _inspector/show to have any effect
+    libobjc.objc_msgSend.restype = ctypes.c_void_p
+    libobjc.objc_msgSend.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    prefs = libobjc.objc_msgSend(ptr, sel(b"preferences"))
+    if prefs:
+        libobjc.objc_msgSend.restype = None
+        libobjc.objc_msgSend.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_bool,
+        ]
+        libobjc.objc_msgSend(
+            ctypes.c_void_p(prefs), sel(b"setDeveloperExtrasEnabled:"), True
+        )
+
+    libobjc.objc_msgSend.restype = ctypes.c_void_p
+    libobjc.objc_msgSend.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    inspector = libobjc.objc_msgSend(ptr, sel(b"_inspector"))
+    if inspector:
+        libobjc.objc_msgSend(ctypes.c_void_p(inspector), sel(b"show"))
+
+
+def _open_devtools_linux(native_ptr):
+    lib_name = ctypes.util.find_library("webkit2gtk-4.1") or ctypes.util.find_library(
+        "webkit2gtk-4.0"
+    )
+    if not lib_name:
+        logging.warning("Could not find WebKitGTK library; devtools unavailable")
+        return
+    webkit = ctypes.cdll.LoadLibrary(lib_name)
+    webkit.webkit_web_view_get_settings.restype = ctypes.c_void_p
+    webkit.webkit_web_view_get_settings.argtypes = [ctypes.c_void_p]
+    webkit.webkit_settings_set_enable_developer_extras.restype = None
+    webkit.webkit_settings_set_enable_developer_extras.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_bool,
+    ]
+    webkit.webkit_web_view_get_inspector.restype = ctypes.c_void_p
+    webkit.webkit_web_view_get_inspector.argtypes = [ctypes.c_void_p]
+    webkit.webkit_web_inspector_show.restype = None
+    webkit.webkit_web_inspector_show.argtypes = [ctypes.c_void_p]
+    native = ctypes.c_void_p(int(native_ptr))
+    settings = webkit.webkit_web_view_get_settings(native)
+    if settings:
+        webkit.webkit_settings_set_enable_developer_extras(
+            ctypes.c_void_p(settings), True
+        )
+    inspector = webkit.webkit_web_view_get_inspector(native)
+    if inspector:
+        webkit.webkit_web_inspector_show(ctypes.c_void_p(inspector))
 
 
 class KolibriView(object):
@@ -165,6 +235,17 @@ class KolibriView(object):
             handler=self.on_forums,
             item_id=wx.ID_HELP_SEARCH,
         )
+        troubleshooting_menu = wx.Menu()
+        show_logs_item = self.add_menu_item(
+            troubleshooting_menu, _("Show Logs"), handler=self.on_show_logs
+        )
+        show_logs_item.Enable(_kolibri_home_readable())
+        self.add_menu_item(
+            troubleshooting_menu,
+            _("Open Developer Tools"),
+            handler=self.on_open_devtools,
+        )
+        help_menu.AppendSubMenu(troubleshooting_menu, _("Troubleshooting"))
         menu_bar.Append(help_menu, _("Help"))
 
         self.view.SetMenuBar(menu_bar)
@@ -279,12 +360,28 @@ class KolibriView(object):
         webbrowser.open(self.get_url())
 
     def on_open_kolibri_home(self, event):
+        _open_in_file_manager(os.environ["KOLIBRI_HOME"])
+
+    def on_show_logs(self, event):
+        _open_in_file_manager(os.path.join(os.environ["KOLIBRI_HOME"], "logs"))
+
+    def on_open_devtools(self, event):
+        native = self.webview.GetNativeBackend()
         if WINDOWS:
-            os.startfile(os.environ["KOLIBRI_HOME"])
+            try:
+                webview2_native.open_devtools_window(native)
+            except (OSError, ValueError) as e:
+                logging.warning(f"OpenDevToolsWindow failed: {e}")
         elif MAC:
-            subprocess.call(["open", os.environ["KOLIBRI_HOME"]])
+            try:
+                _open_devtools_mac(native)
+            except Exception as e:
+                logging.warning(f"DevTools open failed on macOS: {e}")
         elif LINUX:
-            subprocess.call(["xdg-open", os.environ["KOLIBRI_HOME"]])
+            try:
+                _open_devtools_linux(native)
+            except Exception as e:
+                logging.warning(f"DevTools open failed on Linux: {e}")
 
     def on_reload(self, event):
         self.webview.Reload()
